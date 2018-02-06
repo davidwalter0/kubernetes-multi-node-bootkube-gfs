@@ -1,0 +1,10 @@
+#!/bin/bash
+export DIR=$(dirname $(readlink -f ${0}))
+export IPList=$(echo 192.168.0.21 192.168.0.26 192.168.0.{192..254})
+export APP_IPS=$(echo ${IPList} | tr ' ' ',')
+export APP_DNSNAMES="dashboard"
+export APP_ORGANIZATION=dashboard
+export APP_COMMON=dashboard
+export APP_CERT="cluster/tls/dashboard.crt"
+export APP_KEY="cluster/tls/dashboard.key"
+tls-gen/tls-gen

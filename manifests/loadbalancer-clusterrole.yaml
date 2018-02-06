@@ -1,0 +1,44 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: loadbalancer
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  - secrets
+  - configmaps
+  - services/proxy
+  verbs: ["get", "list", "watch", "update", "delete", "proxy"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loadbalancer
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: loadbalancer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: loadbalancer
+subjects:
+- kind: ServiceAccount
+  name: loadbalancer
+  namespace: default
+
+
+# local variables:
+# mode: yaml
+# end:

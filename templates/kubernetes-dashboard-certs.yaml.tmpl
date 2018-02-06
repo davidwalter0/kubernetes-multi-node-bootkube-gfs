@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard-certs
+  namespace: kube-system
+type: Opaque
+data:
+  dashboard.crt: {{ file2string "cluster/tls/dashboard.crt" | base64Encode }}
+  dashboard.key: {{ file2string "cluster/tls/dashboard.key" | base64Encode }}
+

@@ -1,0 +1,63 @@
+#!/bin/bash
+echo ${PWD}
+echo ${0}
+export _items="ds,statefulsets,deploy,rs,rc,po,svc,secret,ep"
+export kubeconfig="--kubeconfig=${PWD}/cluster/auth/kubeconfig"
+
+alias kubectl="${GOPATH}/bin/kubectl ${kubeconfig}"
+
+function get-token
+{
+    secret=$(kubectl -n kube-system get secret |grep default-token|cut -f 1 -d \ )
+    kubectl -n kube-system get -o template secret ${secret} --template='{{.data.token}}'|base64 --decode; echo
+}
+
+function all
+{
+    (
+        ${GOPATH}/bin/kubectl ${kubeconfig} get ${_items} -o wide --show-labels; 
+        printf '%c' -{0..72};
+        echo ;
+        ${GOPATH}/bin/kubectl ${kubeconfig} get ${_items} --namespace=nfs-provisioner -o wide --show-labels;
+        printf '%c' -{0..72};
+        echo;
+        ${GOPATH}/bin/kubectl ${kubeconfig} get pv,pvc -o wide --all-namespaces  --show-labels; kubectl get no;
+        echo
+    )
+}
+
+${GOPATH}/bin/kubectl ${kubeconfig} apply -f heketi-service-account.yaml
+export SSH_PORT=2722
+export GFS_QUAD=226
+export HEKETI_KUBE_SECRET_NAME=$(${GOPATH}/bin/kubectl ${kubeconfig} get sa heketi-service-account -o="go-template" --template="{{(index .secrets 0).name}}")
+export HEKETI_CLI_KEY="$(${GOPATH}/bin/kubectl ${kubeconfig} get secret/${HEKETI_KUBE_SECRET_NAME}  --output=go-template --template='{{ .data.token }}')"
+export HEKETI_CLI_USER=admin
+export HEKETI_CLI_SERVER=http://172.17.4.${GFS_QUAD}:8080
+
+export NODE_COUNT=2
+export GFS_DRIVES=4
+
+export FIRST_DRIVE_LETTER=b
+export GFS_SERVICE=gfs
+export GFS_STORAGE="gfs-storage"
+export GFS_NAME=gfs
+export HEKETI_NAME=heketi
+export STORAGE_MOUNTS=""
+export HEKETI_KUBE_API_HOST="https://172.17.4.101:6443"
+export GFS_NODE_IP_QUADS=172.17.4
+export GFS_IP_PREFIX=172.17.4
+export HEKETI_PORT=8080
+export HEKETI_HOST="https://172.17.4.101:6443"
+export HEKETI_CONFIG=heketi-config
+export HEKETI_CONFIG_SECRET_NAME=heketi-config
+export HEKETI_SSH_SECRET_NAME=heketi-ssh
+export GLUSTER_FS_VOL_SECRET_NAME=glusterfs-vol-config
+export PRIVATE_KEY="${HOME}/.vagrant.d/insecure_private_key"
+export NAMESPACE=default
+export USER_PASSWORD=user_password
+export ADMIN_PASSWORD=admin_password
+echo export HEKETI_KUBE_SECRET_NAME=$(${GOPATH}/bin/kubectl ${kubeconfig} get sa heketi-service-account -o="go-template" --template="{{(index .secrets 0).name}}")
+echo export HEKETI_CLI_KEY="$(${GOPATH}/bin/kubectl ${kubeconfig} get secret/${HEKETI_KUBE_SECRET_NAME}  --output=go-template --template='{{ .data.token }}')"
+echo export HEKETI_CLI_USER=admin
+echo export HEKETI_CLI_SERVER=http://172.17.4.${GFS_QUAD}:8080
+echo export HEKETI_CLI_KEY=${HEKETI_CLI_KEY}

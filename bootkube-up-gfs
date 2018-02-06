@@ -1,0 +1,108 @@
+#!/bin/bash -x
+# compare a couple of versions
+cat <<EOF
+olddir=/go/src/github.com/kubernetes-incubator/bootkube/hack/multi-node/cluster/manifests/
+newdir=cluster/manifests/
+diff -ruwi ${olddir} ${newdir} \
+    | grep -Ev '^(\+|-)( .*\.crt:| .*\.key:| .*\.pub:)' &> logfile
+EOF
+
+set -euo pipefail
+
+GLOG_v=${GLOG_v:-1}
+
+un="$(uname)"
+local_os="linux"
+if [ ${un} == 'Darwin' ]; then
+    local_os="darwin"
+fi
+
+SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
+if [ ${SELF_HOST_ETCD} = "true" ]; then
+    echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
+    etcd_render_flags="--experimental-self-hosted-etcd"
+else
+    # Note: if you increase the number of etcd servers in the Vagrantfile you must also add them here.
+    etcd_render_flags="--etcd-servers=https://172.17.4.51:2379"
+fi
+
+CALICO_NETWORK_POLICY=${CALICO_NETWORK_POLICY:-false}
+if [ ${CALICO_NETWORK_POLICY} = "true" ]; then
+    echo "WARNING: THIS IS EXPERIMENTAL SUPPORT FOR NETWORK POLICY"
+    cnp_render_flags="--network-provider=experimental-calico"
+else
+    cnp_render_flags=""
+fi
+# cnp_render_flags=--network-provider=experimental-calico
+
+# Render assets
+if [ ! -d "cluster" ]; then
+  # ../../_output/bin/${local_os}/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.101:6443 ${etcd_render_flags} ${cnp_render_flags}
+  ${GOPATH}/bin/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.101:6443 ${etcd_render_flags} ${cnp_render_flags}
+fi
+
+########################################################################
+#
+########################################################################
+export KUBERNETES_VERSION=1.9.2
+############### export KUBE_DNS_VERSION=1.14.4
+export STORAGE_MOUNTS=""
+
+############### export NODE_LABELS="node-role.kubernetes.io/master"
+# pre 1.8
+# export NODE_LABELS="node-role.kubernetes.io/controller"
+export NODE_LABELS="node-role.kubernetes.io/master"
+export NODE_TAINTS="
+          --register-with-taints=node-role.kubernetes.io/master=:NoSchedule \\"
+${GOPATH}/bin/applytmpl < templates/user-data.tmpl > cluster/user-data-controller
+
+export NODE_TAINTS=""
+export NODE_LABELS="node-role.kubernetes.io/worker=canary"
+${GOPATH}/bin/applytmpl < templates/user-data.tmpl > cluster/user-data-worker
+
+export NODE_LABELS="node-role.kubernetes.io/loadbalancer=primary"
+export NODE_TAINTS="
+          --register-with-taints=node-role.kubernetes.io/loadbalancer=:NoSchedule \\"
+${GOPATH}/bin/applytmpl < templates/user-data.tmpl > cluster/user-data-loadbalancer
+
+export NODE_LABELS="node-role.kubernetes.io/storage,gluster.io/server=true"
+export NODE_TAINTS=""
+${GOPATH}/bin/applytmpl < templates/user-data.tmpl > cluster/user-data-storage
+
+grep -En --after-context=5 'nodeSelector:|tolerations:' cluster/manifests/*.yaml
+
+export MASTER_LOADBALANCER_TOLERATIONS="tolerations:
+        # Allow the pod to run on master nodes
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+        # Allow the pod to run on one loadbalancer node
+        - key: node-role.kubernetes.io/loadbalancer
+          effect: NoSchedule"
+
+if [[ ${CALICO_NETWORK_POLICY} == "true" ]]; then
+    ${GOPATH}/bin/applytmpl < templates/calico.yaml.tmpl > cluster/manifests/calico.yaml
+else
+    ${GOPATH}/bin/applytmpl < templates/kube-flannel.yaml.tmpl > cluster/manifests/kube-flannel.yaml
+fi
+${GOPATH}/bin/applytmpl < templates/kube-proxy.yaml.tmpl       		 > cluster/manifests/kube-proxy.yaml
+${GOPATH}/bin/applytmpl < templates/pod-checkpointer.yaml.tmpl 		 > cluster/manifests/pod-checkpointer.yaml
+${GOPATH}/bin/applytmpl < templates/kubernetes-dashboard-certs.yaml.tmpl > cluster/manifests/kubernetes-dashboard-certs.yaml
+
+# Start the VM
+vagrant up
+vagrant ssh-config > ssh_config
+
+# Local add on manifests including the load balancer
+rsync -rla manifests/* cluster/manifests/
+# Copy locally rendered assets to the server
+scp -q -F ssh_config -r cluster core@c0:/home/core/cluster
+scp -q -F ssh_config /go/bin/bootkube core@c0:/home/core
+scp -q -F ssh_config ${GOPATH}/bin/bootkube core@c0:/home/core
+
+# Run bootkube
+ssh -q -F ssh_config core@c0 "sudo GLOG_v=${GLOG_v} /home/core/bootkube start --asset-dir=/home/core/cluster 2>> /home/core/bootkube.log"
+
+echo
+echo "Bootstrap complete. Access your kubernetes cluster using:"
+echo "kubectl --kubeconfig=cluster/auth/kubeconfig get nodes"
+echo

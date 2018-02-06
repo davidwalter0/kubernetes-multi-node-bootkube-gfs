@@ -1,0 +1,57 @@
+---
+# # for daemonset/versions before 1.8.0 use apps/v1beta1
+# apiVersion: apps/v1
+# kind: StatefulSet
+kind: DaemonSet
+apiVersion: apps/v1beta2
+metadata:
+  name: loadbalancer
+  namespace: default
+  labels:
+    app: loadbalancer
+spec:
+  # # statefulset requires, daemonset doesn't servicename or replicas
+  # serviceName: "loadbalancer"
+  # replicas: 1
+  selector:
+    matchLabels:
+      name: loadbalancer
+  template:
+    metadata:
+      labels:
+        name: loadbalancer
+    spec:
+      # nodeSelector:
+      #   node-role.kubernetes.io/loadbalancer: ""
+      tolerations:
+        - key: node-role.kubernetes.io/loadbalancer
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/loadbalancer
+                operator: Exists
+      containers:
+      - name: loadbalancer
+        image: davidwalter/loadbalancer:canary
+        imagePullPolicy: Always
+        # imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        args:
+        - "/opt/sbin/loadbalancer"
+        - "--linkdevice=eth2"
+        - "--debug"
+      terminationGracePeriodSeconds: 30
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccount: loadbalancer
+
+
+# local variables:
+# mode: yaml
+# end:
+
