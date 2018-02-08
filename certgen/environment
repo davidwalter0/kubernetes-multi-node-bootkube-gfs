@@ -2,28 +2,31 @@
 
 export DIR=$(dirname $(readlink -f ${0}))
 export IPList=$(echo 192.168.0.{1..254})
+export IPList=$(echo 192.168.0.21 192.168.0.26 192.168.0.250 192.168.0.251 192.168.0.252 192.168.0.253)
 export APP_IPS=$(echo ${IPList} | tr ' ' ',')
 export APP_DNSNAMES="dashboard"
 
 # export APP_CAONLY=true
-export APP_CACOMMON=k8s
-export APP_CAORG=k8s
-export APP_CAUNIT=devops
+export APP_CA_COMMON=k8s
+export APP_CA_ORG=k8s
+export APP_CA_UNIT=clusterops
 export APP_COMMON=dashboard
 export APP_ORG=dashboard
 export APP_UNIT=devops
 # export APP_PATH="tls"
-export APP_KEY="cluster/tls/dashboard"
-export APP_CERT="cluster/tls/dashboard"
+export APP_CERT_FILENAME="cluster/tls/dashboard"
 # export APP_KEY="cluster/tls/dashboard.key"
 # export APP_DEBUG=true
 set -x
+export APP_REPLACE_CA=true
+export APP_REPLACE=true
 # export APP_OVERWRITE=true
-echo export APP_OVERWRITE=${APP_OVERWRITE}
 
 go build -tags netgo -ldflags '-w -s' ../certinfo
 go build -tags netgo -ldflags '-w -s' 
+# ./certgen --debug --help
 ./certgen
+exit
 ./certinfo --file cluster/tls/ca.crt        --fingerprint
 ./certinfo --file cluster/tls/dashboard.crt --fingerprint
 ./certinfo -file cluster/tls/ca.crt 
