@@ -47,6 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 	app.Dump()
+
 	var ca *CertKeyPair
 	var c *CertKeyPair
 	var s *Settings
@@ -57,12 +58,37 @@ func main() {
 		cfg.Usage()
 		log.Fatalf("There was a problem with the arguments %s", err)
 	}
-	if ca, err = s.GetCA(); err != nil {
+
+	if app.Fingerprint {
+		var c *CertKeyPair
+		var loadPair *LoadPair
+		loadPair = &LoadPair{
+			CertFile: s.CAFile,
+			KeyFile:  s.CAKeyFile,
+		}
+
+		if c, err = loadPair.LoadKeyPair(); err == nil {
+			fmt.Printf("Fingerprint %-32.32s: %s\n", loadPair.CertFile, c.GetCertFingerprint())
+		}
+		loadPair = &LoadPair{
+			CertFile: s.CertFile,
+			KeyFile:  s.KeyFile,
+		}
+
+		if c, err = loadPair.LoadKeyPair(); err == nil {
+			fmt.Printf("Fingerprint %-32.32s: %s\n", loadPair.CertFile, c.GetCertFingerprint())
+		} else {
+			log.Println(err)
+		}
+		return
+	}
+
+	if ca, err = s.LoadOrCreateCA(); err != nil {
 		if strings.Index(fmt.Sprintf("%s", err), "PEM file exists") == -1 {
 			app.Debug = true
 			app.Dump()
 		}
-		log.Fatalf("There was a problem with the CA %s", err)
+		log.Println(err)
 	}
 
 	if c, err = s.NewSignedCertKeyPair(ca.Certificate,
@@ -71,7 +97,7 @@ func main() {
 			app.Debug = true
 			app.Dump()
 		}
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	if err = c.WritePemFormatCertAndKey(); err != nil {

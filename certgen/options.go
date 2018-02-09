@@ -22,23 +22,23 @@ import (
 
 // App application suration struct
 type App struct {
-	Debug        bool     `json:"debug"           doc:"be more verbose"`
-	Fingerprint  bool     `json:"fingerprint"     doc:"fingerprint existing cert and key"                      default:"true"`
-	Replace      bool     `json:"replace"         doc:"replace existing cert and key"                          default:"false"`
-	ReplaceCA    bool     `json:"replace-ca"      doc:"replace CA if present, create if not"                   default:"false"`
-	KeyExt       string   `json:"key-ext"         doc:"key certificate filename extension"                     default:".key"`
-	CertExt      string   `json:"cert-ext"        doc:"cert certificate filename extension"                    default:".crt"`
-	Path         string   `json:"path"            doc:"path to certficates"                                    default:"cluster/tls"`
-	CACommon     string   `json:"ca-common"       doc:"certificate authority common name"`
-	CAFilename   string   `json:"ca-filename"     doc:"ca cert/key file name sans extension"                   default:"ca"`
-	CAOrg        []string `json:"ca-org"          doc:"certificate authority comma separated list of organizations"`
-	CAOrgUnit    []string `json:"ca-unit"         doc:"certificate authority comma separated list of organizational units"`
-	CertFilename string   `json:"cert-filename"   doc:"cert/key file name sans extension, default(common name)"`
-	Common       string   `json:"common"          doc:"application certificate common name"`
-	DNSNames     []string `json:"dnsnames"        doc:"application certificate comma separated list of dns names"`
-	IPs          []string `json:"ips"             doc:"application certificate comma separated list of ip addresses"`
-	Org          []string `json:"org"             doc:"application certificate comma separated list of organizations"`
-	OrgUnit      []string `json:"unit"            doc:"application certificate comma separated list of organizational units"`
+	Debug       bool     `json:"debug"       doc:"be more verbose"`
+	Fingerprint bool     `json:"fingerprint" doc:"fingerprint existing cert and key"    default:"false"`
+	Replace     bool     `json:"replace"     doc:"replace existing cert and key"        default:"false"`
+	ReplaceCA   bool     `json:"replace-ca"  doc:"replace CA if present, create if not" default:"false"`
+	KeyExt      string   `json:"key-ext"     doc:"key certificate filename extension"   default:".key"`
+	CertExt     string   `json:"cert-ext"    doc:"cert certificate filename extension"  default:".crt"`
+	Path        string   `json:"path"        doc:"path to certficates"                  default:"cluster/tls"`
+	CACommon    string   `json:"ca-common"   doc:"CA common name"`
+	CAFilename  string   `json:"ca-filename" doc:"ca cert/key file name sans extension" default:"ca"`
+	CAOrg       []string `json:"ca-org"      doc:"CA commaized list of org"`
+	CAOrgUnit   []string `json:"ca-unit"     doc:"CA commaized list of org units"`
+	CertFile    string   `json:"cert-file"   doc:"cert/key file name sans extension, default(common name)"`
+	Common      string   `json:"common"      doc:"app cert common name"`
+	DNSNames    []string `json:"dnsnames"    doc:"app cert commaized list of dns names"`
+	IPs         []string `json:"ips"         doc:"app cert commaized list of ip addresses"`
+	Org         []string `json:"org"         doc:"app cert commaized list of org"`
+	OrgUnit     []string `json:"unit"        doc:"app cert commaized list of org units"`
 }
 
 // Dump info from struct

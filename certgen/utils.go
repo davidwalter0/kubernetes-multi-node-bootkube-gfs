@@ -15,10 +15,16 @@
 package main
 
 import (
+	"bytes"
+	"crypto/dsa"
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"crypto/sha1"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 
 	"k8s.io/client-go/util/cert"
 
@@ -26,6 +32,75 @@ import (
 
 	"github.com/davidwalter0/transform"
 )
+
+// FingerprintPEM with hash
+func FingerprintPEM(pem []byte) (print string) {
+	if key, err := GetFirstPEMPublicKey(pem); err == nil {
+		print = FingerprintPublicKey(key)
+	} else {
+		fmt.Println(key)
+		panic(err)
+	}
+	return
+}
+
+// FingerprintPublicKey with hash
+func FingerprintPublicKey(publicKey interface{}) string {
+	switch key := publicKey.(type) {
+	case *rsa.PublicKey:
+		return FingerprintBigInt(key.N)
+	case *dsa.PublicKey:
+		return FingerprintBigInt(key.Y)
+	case *ecdsa.PublicKey:
+		return FingerprintBigInt(key.Y)
+	default:
+		panic("unknown type of PublicKey key")
+	}
+}
+
+// Fingerprint Hash of an array of byte ([]byte)
+func Fingerprint(text []byte) string {
+	hash := sha1.Sum(text)
+	return FormatHash(hash[:])
+}
+
+// FingerprintBigInt with hash
+func FingerprintBigInt(N *big.Int) string {
+	var text []byte
+	var err error
+	if text, err = N.MarshalText(); err != nil {
+		return fmt.Sprintf("%s", err)
+	}
+	hash := sha1.Sum(text)
+	return FormatHash(hash[:])
+}
+
+// GetFirstPEMPublicKey from a certificate PEM
+func GetFirstPEMPublicKey(data []byte) (interface{}, error) {
+	var block *pem.Block
+	for {
+		// read the next block
+		block, data = pem.Decode(data)
+		if block == nil {
+			break
+		}
+		// get PEM bytes for just this block
+		blockData := pem.EncodeToMemory(block)
+		if privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(blockData); err == nil {
+			return &privateKey.PublicKey, nil
+		}
+		if publicKey, err := jwt.ParseRSAPublicKeyFromPEM(blockData); err == nil {
+			return publicKey, err
+		}
+		if privateKey, err := jwt.ParseECPrivateKeyFromPEM(blockData); err == nil {
+			return &privateKey.PublicKey, err
+		}
+		if publicKey, err := jwt.ParseECPublicKeyFromPEM(blockData); err == nil {
+			return publicKey, err
+		}
+	}
+	return nil, fmt.Errorf("No rsa.PublicKey parsed from certificate PEM")
+}
 
 // ReadPublicKeysFromPEM is a helper function for reading an array of
 // rsa.PublicKey or ecdsa.PublicKey from a PEM-encoded byte array.
@@ -96,4 +171,13 @@ func Jsonify(data interface{}) string {
 		return fmt.Sprintf("%v", err)
 	}
 	return string(s)
+}
+
+// FormatHash colon separated hex formatted string
+func FormatHash(hash []byte) string {
+	hexified := make([][]byte, len(hash))
+	for i, data := range hash {
+		hexified[i] = []byte(fmt.Sprintf("%02X", data))
+	}
+	return string(bytes.Join(hexified, []byte(":")))
 }

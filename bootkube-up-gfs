@@ -86,8 +86,11 @@ else
 fi
 ${GOPATH}/bin/applytmpl < templates/kube-proxy.yaml.tmpl       		 > cluster/manifests/kube-proxy.yaml
 ${GOPATH}/bin/applytmpl < templates/pod-checkpointer.yaml.tmpl 		 > cluster/manifests/pod-checkpointer.yaml
+./make-cert --name=dashboard
+./make-cert --name=mosquitto
 ${GOPATH}/bin/applytmpl < templates/kubernetes-dashboard-certs.yaml.tmpl > cluster/manifests/kubernetes-dashboard-certs.yaml
 
+exit
 # Start the VM
 vagrant up
 vagrant ssh-config > ssh_config

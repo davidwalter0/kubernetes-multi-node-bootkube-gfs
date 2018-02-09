@@ -26,20 +26,26 @@ import (
 	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
+// LoadPair cert key names struct
+type LoadPair struct {
+	CertFile string `json:"cert"         doc:"cert file name, default:common name"`
+	KeyFile  string `json:"key"          doc:"key file name,  default:common name"`
+}
+
 // Settings application configuration struct
 type Settings struct {
-	CAFile    string   `json:"cafile"       doc:"ca cert file name"                    default:"ca"`
-	CAKeyFile string   `                    doc:"ca key file name"`
-	CertFile  string   `json:"cert"         doc:"cert file name, default:common name"`
-	KeyFile   string   `                    doc:"key file name,  default:common name"`
-	CACommon  string   `json:"cacommon"     doc:"certificate authority common name"`
-	CAOrg     []string `json:"caorg"        doc:"certificate authority comma separated list of organizations"`
-	CAOrgUnit []string `json:"caunit"       doc:"certificate authority comma separated list of organizational units"`
-	Common    string   `json:"common"       doc:"application certificate common name"`
-	DNSNames  []string `json:"dnsnames"     doc:"application certificate comma separated list of dns names"`
-	IPs       []net.IP `json:"ips"          doc:"application certificate comma separated list of ip addresses"`
-	Org       []string `json:"org"          doc:"application certificate comma separated list of organizations"`
-	OrgUnit   []string `json:"unit"         doc:"application certificate comma separated list of organizational units"`
+	CAFile    string   `json:"cafile"   doc:"ca cert file name"                    default:"ca"`
+	CAKeyFile string   `                doc:"ca key file name"`
+	CertFile  string   `json:"cert"     doc:"cert file name, default:common name"`
+	KeyFile   string   `                doc:"key file name,  default:common name"`
+	CACommon  string   `json:"cacommon" doc:"CA common name"`
+	CAOrg     []string `json:"caorg"    doc:"CA commaized list of org"`
+	CAOrgUnit []string `json:"caunit"   doc:"CA commaized list of org units"`
+	Common    string   `json:"common"   doc:"app cert common name"`
+	DNSNames  []string `json:"dnsnames" doc:"app cert commaized list of dns names"`
+	IPs       []net.IP `json:"ips"      doc:"app cert commaized list of ip addresses"`
+	Org       []string `json:"org"      doc:"app cert commaized list of org"`
+	OrgUnit   []string `json:"unit"     doc:"app cert commaized list of org units"`
 }
 
 // NewSettingsFromApp creates a Settings using app flags or
@@ -71,22 +77,22 @@ func (s *Settings) ResolvePaths(app *App) error {
 		base := filepath.Base
 		join := filepath.Join
 
-		if len(app.CertFilename) != 0 && len(app.Common) == 0 {
-			app.Common = app.CertFilename
+		if len(app.CertFile) != 0 && len(app.Common) == 0 {
+			app.Common = app.CertFile
 		}
 
-		if len(app.CertFilename) == 0 && len(app.Common) != 0 {
-			app.CertFilename = app.Common
+		if len(app.CertFile) == 0 && len(app.Common) != 0 {
+			app.CertFile = app.Common
 		}
 
-		if len(app.CertFilename) == 0 && len(app.Common) == 0 {
+		if len(app.CertFile) == 0 && len(app.Common) == 0 {
 			return fmt.Errorf("Common name or certfile are required")
 		}
 
 		s.CAFile = join(app.Path, base(app.CAFilename)+app.CertExt)
 		s.CAKeyFile = join(app.Path, base(app.CAFilename)+app.KeyExt)
-		s.CertFile = join(app.Path, base(app.CertFilename)+app.CertExt)
-		s.KeyFile = join(app.Path, base(app.CertFilename)+app.KeyExt)
+		s.CertFile = join(app.Path, base(app.CertFile)+app.CertExt)
+		s.KeyFile = join(app.Path, base(app.CertFile)+app.KeyExt)
 	}
 
 	if _, err := os.Stat(app.Path); os.IsNotExist(err) {
@@ -97,25 +103,36 @@ func (s *Settings) ResolvePaths(app *App) error {
 	return nil
 }
 
-// GetCA create or load cert and key file
-func (s *Settings) GetCA() (*CertKeyPair, error) {
+// LoadKeyPair create or load cert and key file
+func (loadPair *LoadPair) LoadKeyPair() (c *CertKeyPair, err error) {
+	c = &CertKeyPair{}
+	c.Certificate, err = LoadPemEncodedCertificate(loadPair.CertFile)
+	if err != nil {
+		return nil, fmt.Errorf("%s PEM file load failed", loadPair.CertFile)
+	}
+	c.PrivateKey, err = LoadPemEncodedPrivateRSAKey(loadPair.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("%s PEM file load failed", loadPair.KeyFile)
+	}
+	c.CertFile = loadPair.CertFile
+	c.KeyFile = loadPair.KeyFile
+	c.SetKeyFingerprint()
+	c.SetCertFingerprint()
+	return
+}
+
+// LoadCA from files
+func (s *Settings) LoadOrCreateCA() (*CertKeyPair, error) {
 	_, caErr := os.Stat(s.CAFile)
 	_, keyErr := os.Stat(s.CAKeyFile)
 	ca := &CertKeyPair{}
 	if caErr == nil && keyErr == nil {
 		if !app.ReplaceCA {
-			ca.Certificate, err = LoadPemEncodedCertificate(s.CAFile)
-			if err != nil {
-				return nil, fmt.Errorf("%s PEM file load failed", s.CAFile)
+			loadPair := LoadPair{
+				CertFile: s.CAFile,
+				KeyFile:  s.CAKeyFile,
 			}
-			ca.PrivateKey, err = LoadPemEncodedPrivateRSAKey(s.CAKeyFile)
-			if err != nil {
-				return nil, fmt.Errorf("%s PEM file load failed", s.CAKeyFile)
-			}
-			ca.CertFile = s.CAFile
-			ca.KeyFile = s.CAKeyFile
-			ca.SetFingerprint()
-			return ca, nil
+			return loadPair.LoadKeyPair()
 		}
 	}
 	key, err := tlsutil.NewPrivateKey()
@@ -142,7 +159,8 @@ func (s *Settings) GetCA() (*CertKeyPair, error) {
 
 	ca.CertFile = s.CAFile
 	ca.KeyFile = s.CAKeyFile
-	ca.SetFingerprint()
+	ca.SetKeyFingerprint()
+	ca.SetCertFingerprint()
 
 	if err = ca.WritePemFormatCertAndKey(); err != nil {
 		app.Debug = true
@@ -223,10 +241,11 @@ func (s *Settings) NewSignedCertKeyPair(caCert *x509.Certificate, caPrivKey *rsa
 	}
 
 	return &CertKeyPair{
-		Certificate: cert,
-		PrivateKey:  key,
-		CertFile:    s.CertFile,
-		KeyFile:     s.KeyFile,
-		Fingerprint: getFingerprint(cert.Raw),
+		Certificate:     cert,
+		PrivateKey:      key,
+		CertFile:        s.CertFile,
+		KeyFile:         s.KeyFile,
+		CertFingerprint: FingerprintPublicKey(cert.PublicKey),
+		KeyFingerprint:  FingerprintPublicKey(key.Public()),
 	}, err
 }
