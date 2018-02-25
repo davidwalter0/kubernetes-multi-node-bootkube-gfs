@@ -22,7 +22,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
@@ -46,6 +45,12 @@ func main() {
 		log.Println(err)
 		os.Exit(1)
 	}
+
+	if err = app.ParseCfg(); err != nil {
+		cfg.Usage()
+		log.Fatalf("There was a problem with the yaml/json %s", err)
+	}
+
 	app.Dump()
 
 	var ca *CertKeyPair
@@ -53,8 +58,6 @@ func main() {
 	var s *Settings
 
 	if s, err = NewSettingsFromApp(app); err != nil {
-		app.Debug = true
-		app.Dump()
 		cfg.Usage()
 		log.Fatalf("There was a problem with the arguments %s", err)
 	}
@@ -84,26 +87,17 @@ func main() {
 	}
 
 	if ca, err = s.LoadOrCreateCA(); err != nil {
-		if strings.Index(fmt.Sprintf("%s", err), "PEM file exists") == -1 {
-			app.Debug = true
-			app.Dump()
-		}
 		log.Println(err)
 	}
 
 	if c, err = s.NewSignedCertKeyPair(ca.Certificate,
 		ca.PrivateKey); err != nil {
-		if strings.Index(fmt.Sprintf("%s", err), "PEM file exists") == -1 {
-			app.Debug = true
-			app.Dump()
-		}
 		log.Println(err)
 	}
-
-	if err = c.WritePemFormatCertAndKey(); err != nil {
-		app.Debug = true
-		app.Dump()
-		log.Fatal(err)
+	if c != nil {
+		if err = c.WritePemFormatCertAndKey(); err != nil {
+			log.Println(err)
+		}
 	}
 }
 

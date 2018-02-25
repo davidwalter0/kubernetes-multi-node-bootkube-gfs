@@ -18,6 +18,8 @@ import (
 
 type App struct {
 	File        string
+	Md5         bool
+	Sha256      bool
 	Fingerprint bool
 	Debug       bool
 }

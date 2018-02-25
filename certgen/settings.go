@@ -121,7 +121,7 @@ func (loadPair *LoadPair) LoadKeyPair() (c *CertKeyPair, err error) {
 	return
 }
 
-// LoadCA from files
+// LoadOrCreateCA from files
 func (s *Settings) LoadOrCreateCA() (*CertKeyPair, error) {
 	_, caErr := os.Stat(s.CAFile)
 	_, keyErr := os.Stat(s.CAKeyFile)

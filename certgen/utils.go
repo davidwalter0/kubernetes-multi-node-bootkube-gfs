@@ -18,13 +18,16 @@ import (
 	"bytes"
 	"crypto/dsa"
 	"crypto/ecdsa"
+	"crypto/md5"
 	"crypto/rsa"
-	"crypto/sha1"
+	"encoding/binary"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"hash"
 	"io/ioutil"
 	"math/big"
+	"strings"
 
 	"k8s.io/client-go/util/cert"
 
@@ -60,7 +63,7 @@ func FingerprintPublicKey(publicKey interface{}) string {
 
 // Fingerprint Hash of an array of byte ([]byte)
 func Fingerprint(text []byte) string {
-	hash := sha1.Sum(text)
+	hash := md5.Sum(text)
 	return FormatHash(hash[:])
 }
 
@@ -71,7 +74,7 @@ func FingerprintBigInt(N *big.Int) string {
 	if text, err = N.MarshalText(); err != nil {
 		return fmt.Sprintf("%s", err)
 	}
-	hash := sha1.Sum(text)
+	hash := md5.Sum(text)
 	return FormatHash(hash[:])
 }
 
@@ -180,4 +183,94 @@ func FormatHash(hash []byte) string {
 		hexified[i] = []byte(fmt.Sprintf("%02X", data))
 	}
 	return string(bytes.Join(hexified, []byte(":")))
+}
+
+// MarshalRSAPublicKey for fingerprint
+func MarshalRSAPublicKey(key *rsa.PublicKey) (content []byte) {
+	prefix := "ssh-rsa"
+
+	buf := bytes.NewBuffer(nil)
+	buf.Write(uint32EncodeByteSlice([]byte(prefix)))
+
+	e := make([]byte, 4)
+	binary.BigEndian.PutUint32(e, uint32(key.E))
+	buf.Write(uint32EncodeByteSlice(bytes.TrimLeft(e, "\x00")))
+
+	buf.Write(uint32EncodeByteSlice([]byte{0}, key.N.Bytes()))
+	content = buf.Bytes()
+	return
+}
+
+// encoding byte slice array as uint32
+func uint32EncodeByteSlice(in ...[]byte) (slice []byte) {
+	bytes := 0
+	for _, v := range in {
+		bytes += len(v)
+	}
+
+	if bytes > 4294967295 {
+		panic(fmt.Errorf("input is too large"))
+	}
+
+	slice = make([]byte, 4+bytes)
+	binary.BigEndian.PutUint32(slice, uint32(bytes))
+
+	start := 4 + copy(slice[4:], in[0])
+	if len(in) > 1 {
+		for _, v := range in[1:] {
+			copy(slice[start:], v)
+		}
+	}
+	return
+}
+
+// FingerprintMd5 of an *rsa.PublicKey
+func FingerprintMd5(key *rsa.PublicKey) string {
+	hash := md5.Sum(MarshalRSAPublicKey(key))
+	return string(strings.ToLower(FormatHash(hash[:])))
+}
+
+func encodeByteSlice(in ...[]byte) []byte {
+	l := 0
+	for _, v := range in {
+		l += len(v)
+	}
+	if l > 4294967295 {
+		panic(fmt.Errorf("input byte slice is too long"))
+	}
+
+	out := make([]byte, 4+l)
+	binary.BigEndian.PutUint32(out, uint32(l))
+
+	start := 4 + copy(out[4:], in[0])
+	if len(in) > 1 {
+		for _, v := range in[1:] {
+			copy(out[start:], v)
+		}
+	}
+	return out
+}
+
+// func Fingerprint(k PublicKey, alg crypto.Hash) ([]byte, error) {
+func fingerprint(k *rsa.PublicKey) string {
+	var (
+		c []byte
+	)
+	var h hash.Hash
+	h = md5.New()
+	h.Write(c)
+	return FormatHash(h.Sum(nil))
+}
+
+func marshalRSAPublicKey(key *rsa.PublicKey) (content []byte) {
+	var prefix = "ssh-rsa"
+
+	buf := bytes.NewBuffer(nil)
+	buf.Write(encodeByteSlice([]byte(prefix)))
+	e := make([]byte, 4)
+	binary.BigEndian.PutUint32(e, uint32(key.E))
+	buf.Write(encodeByteSlice(bytes.TrimLeft(e, "\x00")))
+	buf.Write(encodeByteSlice([]byte{0}, key.N.Bytes()))
+	content = buf.Bytes()
+	return
 }

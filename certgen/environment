@@ -19,15 +19,18 @@ export APP_CERT_FILE="cluster/tls/dashboard"
 # export APP_DEBUG=true
 set -x
 # export APP_REPLACE_CA=true
-export APP_REPLACE=true
+# export APP_REPLACE=true
 # export APP_OVERWRITE=true
 
 go build -tags netgo -ldflags '-w -s' ../certinfo
 go build -tags netgo -ldflags '-w -s' 
 # ./certgen --debug --help
 ./certgen --fingerprint
+./certgen --dumpcfg > certgen.json
+exit 0
 ./certgen
 ./certgen --fingerprint
+
 exit
 ./certinfo --file cluster/tls/ca.crt        --fingerprint
 ./certinfo --file cluster/tls/dashboard.crt --fingerprint
